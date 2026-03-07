@@ -1,6 +1,6 @@
 import React, { useState, useRef } from "react";
 
-const CATEGORIES = ["All", "Italian", "Asian", "Mexican"];
+const CATEGORIES = ["All", "Italian", "Asian", "Mexican", "Sides", "Dessert"];
 
 const initialRecipes = [
   {
@@ -86,7 +86,7 @@ const styles = `
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 32px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
     gap: 16px;
   }
@@ -124,6 +124,61 @@ const styles = `
   }
   .add-btn:hover { background: #b5813a; }
 
+  /* Search bar */
+  .search-bar-wrap {
+    margin-bottom: 32px;
+    position: relative;
+  }
+  .search-bar-wrap input {
+    width: 100%;
+    background: #fff;
+    border: 1.5px solid #e8e0d0;
+    border-radius: 30px;
+    padding: 12px 20px 12px 46px;
+    font-family: 'Lato', sans-serif;
+    font-size: 15px;
+    color: #1a1208;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-bar-wrap input:focus {
+    border-color: #b5813a;
+    box-shadow: 0 0 0 3px rgba(181,129,58,0.1);
+  }
+  .search-bar-wrap input::placeholder { color: #b5a88a; }
+  .search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 17px;
+    pointer-events: none;
+  }
+  .search-clear {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #9a8a70;
+    cursor: pointer;
+    padding: 4px;
+    line-height: 1;
+    transition: color 0.2s;
+  }
+  .search-clear:hover { color: #1a1208; }
+  .search-results-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #b5813a;
+    margin-bottom: 20px;
+    margin-top: -12px;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -149,6 +204,18 @@ const styles = `
   .card-title { font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700; color: #1a1208; margin-bottom: 8px; line-height: 1.25; }
   .card-desc { font-size: 14px; color: #7a6a50; line-height: 1.5; font-weight: 300; margin-bottom: 16px; }
   .card-meta { display: flex; gap: 16px; font-size: 12px; color: #9a8a70; font-weight: 700; letter-spacing: 0.5px; }
+
+  /* Ingredient match highlight on card */
+  .card-ingredient-match {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #b5813a;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #f0e8d8;
+  }
 
   .detail { animation: fadeIn 0.3s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -207,6 +274,7 @@ const styles = `
   .ingredients-list { list-style: none; }
   .ingredients-list li { padding: 10px 0; border-bottom: 1px solid #f0e8d8; font-size: 15px; color: #3a2e1e; font-weight: 300; display: flex; align-items: center; gap: 10px; }
   .ingredients-list li::before { content: ''; width: 6px; height: 6px; background: #b5813a; border-radius: 50%; flex-shrink: 0; }
+  .ingredients-list li.highlight { background: #fdf6ec; margin: 0 -8px; padding: 10px 8px; border-radius: 3px; font-weight: 700; color: #b5813a; }
   .steps-list { list-style: none; counter-reset: steps; }
   .steps-list li { counter-increment: steps; padding: 0 0 24px 52px; position: relative; font-size: 15px; color: #3a2e1e; line-height: 1.65; font-weight: 300; }
   .steps-list li::before { content: counter(steps); position: absolute; left: 0; top: 0; width: 34px; height: 34px; background: #1a1208; color: #faf8f4; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-size: 15px; font-weight: 700; }
@@ -240,27 +308,50 @@ const styles = `
   .empty { text-align: center; padding: 80px 20px; font-family: 'Playfair Display', serif; font-size: 20px; color: #b5a88a; font-style: italic; }
 `;
 
-const categoryEmoji = { Italian: "🍝", Asian: "🥢", Mexican: "🌮", default: "🍴" };
+const categoryEmoji = { Italian: "🍝", Asian: "🥢", Mexican: "🌮", Sides: "🥗", Dessert: "🍰", default: "🍴" };
 const emptyForm = { title: "", category: "Italian", time: "", serves: "", description: "", ingredients: "", steps: "", image: null };
 
 export default function App() {
   const [recipes, setRecipes] = useState(() => {
-    const saved = localStorage.getItem("my-recipes");
-    return saved ? JSON.parse(saved) : initialRecipes;
+    try {
+      const saved = localStorage.getItem("my-recipes");
+      return saved ? JSON.parse(saved) : initialRecipes;
+    } catch {
+      return initialRecipes;
+    }
   });
+
   React.useEffect(() => {
-    localStorage.setItem("my-recipes", JSON.stringify(recipes));
+    try {
+      localStorage.setItem("my-recipes", JSON.stringify(recipes));
+    } catch (e) {
+      console.error("Failed to save recipes:", e);
+    }
   }, [recipes]);
 
   const [activeCategory, setActiveCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [editingRecipe, setEditingRecipe] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const fileInputRef = useRef();
 
-  const filtered = activeCategory === "All" ? recipes : recipes.filter(r => r.category === activeCategory);
+  // Filter by category first, then by ingredient search
+  const categoryFiltered = activeCategory === "All" ? recipes : recipes.filter(r => r.category === activeCategory);
+
+  const searchTrimmed = searchQuery.trim().toLowerCase();
+  const filtered = searchTrimmed
+    ? categoryFiltered.filter(r =>
+        r.ingredients.some(ing => ing.toLowerCase().includes(searchTrimmed))
+      )
+    : categoryFiltered;
+
+  // For each filtered recipe, find which ingredients matched
+  const getMatchedIngredients = (recipe) => {
+    if (!searchTrimmed) return [];
+    return recipe.ingredients.filter(ing => ing.toLowerCase().includes(searchTrimmed));
+  };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -357,7 +448,11 @@ export default function App() {
               <div>
                 <div className="detail-section-title">Ingredients</div>
                 <ul className="ingredients-list">
-                  {selected.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
+                  {selected.ingredients.map((ing, i) => (
+                    <li key={i} className={searchTrimmed && ing.toLowerCase().includes(searchTrimmed) ? "highlight" : ""}>
+                      {ing}
+                    </li>
+                  ))}
                 </ul>
               </div>
               <div>
@@ -380,27 +475,60 @@ export default function App() {
               <button className="add-btn" onClick={() => setShowForm(true)}>+ Add Recipe</button>
             </div>
 
-            {filtered.length === 0
+            {/* Search bar */}
+            <div className="search-bar-wrap">
+              <span className="search-icon">🔍</span>
+              <input
+                type="text"
+                placeholder="Search by ingredient (e.g. garlic, chicken, lime...)"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+              {searchQuery && (
+                <button className="search-clear" onClick={() => setSearchQuery("")}>✕</button>
+              )}
+            </div>
+
+            {searchTrimmed && (
+              <div className="search-results-label">
+                {filtered.length === 0
+                  ? `No recipes found containing "${searchTrimmed}"`
+                  : `${filtered.length} recipe${filtered.length > 1 ? "s" : ""} containing "${searchTrimmed}"`
+                }
+              </div>
+            )}
+
+            {filtered.length === 0 && !searchTrimmed
               ? <div className="empty">No {activeCategory} recipes yet — add one!</div>
+              : filtered.length === 0 && searchTrimmed
+              ? <div className="empty">No recipes found — try a different ingredient.</div>
               : (
                 <div className="grid">
-                  {filtered.map(recipe => (
-                    <div key={recipe.id} className="card" onClick={() => setSelected(recipe)}>
-                      {recipe.image
-                        ? <img src={recipe.image} alt={recipe.title} className="card-img" />
-                        : <div className="card-img-placeholder">{categoryEmoji[recipe.category] || categoryEmoji.default}</div>
-                      }
-                      <div className="card-body">
-                        <div className="card-category">{recipe.category}</div>
-                        <div className="card-title">{recipe.title}</div>
-                        {recipe.description && <div className="card-desc">{recipe.description}</div>}
-                        <div className="card-meta">
-                          <span>⏱ {recipe.time}</span>
-                          <span>👥 Serves {recipe.serves}</span>
+                  {filtered.map(recipe => {
+                    const matched = getMatchedIngredients(recipe);
+                    return (
+                      <div key={recipe.id} className="card" onClick={() => setSelected(recipe)}>
+                        {recipe.image
+                          ? <img src={recipe.image} alt={recipe.title} className="card-img" />
+                          : <div className="card-img-placeholder">{categoryEmoji[recipe.category] || categoryEmoji.default}</div>
+                        }
+                        <div className="card-body">
+                          <div className="card-category">{recipe.category}</div>
+                          <div className="card-title">{recipe.title}</div>
+                          {recipe.description && <div className="card-desc">{recipe.description}</div>}
+                          <div className="card-meta">
+                            <span>⏱ {recipe.time}</span>
+                            <span>👥 Serves {recipe.serves}</span>
+                          </div>
+                          {matched.length > 0 && (
+                            <div className="card-ingredient-match">
+                              ✓ Contains: {matched.join(", ")}
+                            </div>
+                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             }
@@ -436,6 +564,8 @@ export default function App() {
                     <option>Italian</option>
                     <option>Asian</option>
                     <option>Mexican</option>
+                    <option>Sides</option>
+                    <option>Dessert</option>
                   </select>
                 </div>
                 <div className="form-group">
